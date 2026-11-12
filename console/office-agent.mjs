@@ -85,12 +85,13 @@ async function renderTask(task) {
   if (task.composition !== 'BenchmarkVideo') throw new Error('Unsupported composition: ' + task.composition);
   const id = String(task.id).replace(/[^a-f0-9-]/gi, '');
   const concurrency = [1,2,4].includes(Number(task.concurrency)) ? Number(task.concurrency) : 4;
+  const totalFrames = [300,900,1800].includes(Number(task.total_frames)) ? Number(task.total_frames) : 1800;
   const relativeOutput = 'out/console/' + id + '.mp4';
   const remoteCommand = 'set -e; cd ' + REMOTE_ROOT +
     '; git pull --ff-only origin main' +
     '; mkdir -p out/console' +
     '; start=$(date +%s%3N); set +e; npx remotion render src/index.ts BenchmarkVideo ' + relativeOutput +
-    ' --codec=h264 --concurrency=' + concurrency +
+    ' --codec=h264 --concurrency=' + concurrency + ' --frames=0-' + (totalFrames - 1) +
     '; render_exit=$?; set -e; end=$(date +%s%3N); echo __RENDER_ELAPSED_MS=$((end-start)); exit $render_exit';
   const started = Date.now();
   let lastProgress = -1;
