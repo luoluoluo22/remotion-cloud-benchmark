@@ -1,10 +1,10 @@
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 
 const API = (process.env.RENDER_CONSOLE_URL || 'https://remotion-render-console.remotion-console-7501243.workers.dev').replace(/\/$/, '');
-const TOKEN = process.env.RENDER_AGENT_TOKEN;
+const TOKEN = process.env.GH_TOKEN || process.env.GITHUB_TOKEN || (() => { try { return execFileSync('gh', ['auth', 'token'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { return ''; } })();
 const ROOT = process.env.REMOTION_REPO_ROOT || process.cwd();
 const NODE_ID = process.env.RENDER_NODE_ID || 'codespace-4-core';
 const MACHINE = process.env.RENDER_MACHINE_TYPE || 'standardLinux32gb';
@@ -12,7 +12,7 @@ const REGION = process.env.RENDER_REGION || 'Southeast Asia';
 const VERSION = '1.0.0';
 
 if (!TOKEN) {
-  console.error('[render-agent] Missing RENDER_AGENT_TOKEN; agent will not start.');
+  console.error('[render-agent] No GitHub Codespaces authentication token found; run gh auth login or check Codespaces GitHub CLI auth.');
   process.exit(2);
 }
 if (!fs.existsSync(path.join(ROOT, 'package.json'))) {
