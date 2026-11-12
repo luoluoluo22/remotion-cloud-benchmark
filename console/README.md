@@ -9,7 +9,7 @@ Public console: https://remotion-render-console.remotion-console-7501243.workers
 - New benchmark tasks can be queued from the web UI for 10, 30, or 60 seconds.
 - The office dispatcher claims tasks, starts the selected GitHub Codespace through GitHub CLI, pulls the latest code, and runs Remotion.
 - Frame-based progress and render logs are reported back to the dashboard.
-- The dashboard shows completed task metadata, output path, MP4 size, and pure Remotion render time.
+- The dashboard shows completed task metadata, output path, MP4 size, and Remotion command duration (including bundling and H.264 encoding, excluding SSH and repository sync).
 
 ## Login
 
