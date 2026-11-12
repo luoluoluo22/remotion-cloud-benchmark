@@ -32,7 +32,7 @@ On the current office PC, Windows Task Scheduler has a task named `Remotion Clou
 
 - Only `BenchmarkVideo` is enabled for web-submitted jobs. The production Remotion project and product-line templates are phase 2.
 - The 10/30/60-second choices render the corresponding frame range of the 60-second benchmark composition.
-- R2 is not enabled on the Cloudflare account. MP4 files remain in the private Codespace workspace; browser playback and durable downloads are not yet available. Enable R2 in the Cloudflare Dashboard before connecting permanent artifact storage.
+- R2 is intentionally not enabled. Completed MP4 files are copied from Codespaces to the office PC local cache at `%LOCALAPPDATA%\\RemotionCloudRender\\media-cache`, then served through the existing free Cloudflare Tunnel at `https://render-media.xiangyi.cc.cd`. The Worker requires a dashboard session and adds the SHA-256 hash of the office agent token before proxying the video; the local gateway validates it. HTTP Range requests are supported for browser seeking. The office PC must remain online for playback and downloads. No object-storage subscription or R2 charges are used.
 - The dashboard remains online independently, but a queued job starts only while the office dispatcher is running. The Codespace can be stopped between jobs; the dispatcher connects and starts it when a job is claimed.
 - If the office PC is offline, tasks remain queued until the dispatcher returns.
 
@@ -41,3 +41,15 @@ On the current office PC, Windows Task Scheduler has a task named `Remotion Clou
 - Worker: `remotion-render-console`
 - D1 database: `remotion_render_console` (APAC primary location)
 - Codespace: `4-core-ssh-benchmark-wvgg7x9pr56f9vxw` (`standardLinux32gb`, 4 vCPU, 16 GB RAM, 32 GB storage)
+
+
+## Free media gateway
+
+- Hostname: `render-media.xiangyi.cc.cd`
+- Existing Cloudflare Tunnel: `raccoon-mcp-xiangyi` (existing routes preserved; media route appended)
+- Local origin: `127.0.0.1:8791`
+- Local cache: `%LOCALAPPDATA%\\RemotionCloudRender\\media-cache`
+- Gateway script: `console/media-gateway.mjs`
+- Office scheduled task: `Remotion Cloud Media Gateway`
+- The gateway binds to loopback only and serves only UUID-named MP4 files.
+- Browser requests pass through the authenticated Worker media endpoint; the Worker forwards the SHA-256 hash of the office agent token, which the local gateway verifies against the agent token stored in the Windows user profile.
