@@ -1,7 +1,11 @@
 {
   "name": "Remotion Cloud Benchmark",
   "image": "mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm",
-  "features": {},
+  "features": {
+    "ghcr.io/devcontainers/features/sshd:1": {
+      "version": "latest"
+    }
+  },
   "forwardPorts": [3000],
   "postCreateCommand": "npm install",
   "customizations": {
