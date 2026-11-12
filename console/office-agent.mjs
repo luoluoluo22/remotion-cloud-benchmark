@@ -62,6 +62,14 @@ function remoteCapture(command) {
 }
 let activeTaskId = null;
 let lastState = 'Unknown';
+let lastStateCheckedAt = 0;
+function refreshCodespaceState(force = false) {
+  if (force || Date.now() - lastStateCheckedAt > 30000) {
+    lastState = getCodespaceState();
+    lastStateCheckedAt = Date.now();
+  }
+  return lastState;
+}
 async function heartbeat(status) {
   try {
     await post('/api/agent/heartbeat', {
@@ -157,7 +165,7 @@ async function renderTask(task) {
 async function main() {
   console.log('[office-agent] Started; Codespace:',CODESPACE,'Node:',process.version,'Host:',os.hostname());
   while (true) {
-    lastState = getCodespaceState();
+    refreshCodespaceState();
     await heartbeat(activeTaskId ? 'online' : (lastState === 'Available' ? 'online' : 'offline'));
     try {
       const result = await post('/api/agent/claim',{node_id:NODE_ID});
@@ -166,7 +174,7 @@ async function main() {
         await heartbeat('online');
         try { await renderTask(result.task); }
         catch (error) { console.error('[office-agent] task failed:',error.message); }
-        finally { activeTaskId=null; lastState=getCodespaceState(); await heartbeat(lastState==='Available'?'online':'offline'); }
+        finally { activeTaskId=null; refreshCodespaceState(true); await heartbeat(lastState==='Available'?'online':'offline'); }
       } else {
         await sleep(5000);
       }
