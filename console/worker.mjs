@@ -72,8 +72,20 @@ const validSession = async (request, env) => {
 const agentOk = async (request, env) => {
   const header = request.headers.get('authorization') || '';
   if (!header.startsWith('Bearer ')) return false;
-  const row = await env.DB.prepare("SELECT value FROM console_secrets WHERE key='agent_token_hash'").first();
-  return !!row && (await hash(header.slice(7))) === row.value;
+  const token = header.slice(7);
+  if (token.length < 20) return false;
+  const tokenHash = await hash(token);
+  const cached = await env.DB.prepare("SELECT expires_at FROM agent_auth_cache WHERE token_hash=?").bind(tokenHash).first();
+  if (cached && cached.expires_at > now()) return true;
+  const response = await fetch('https://api.github.com/user', {
+    headers: { authorization: 'Bearer ' + token, accept: 'application/vnd.github+json', 'user-agent': 'remotion-render-console' }
+  });
+  if (!response.ok) return false;
+  const identity = await response.json();
+  if (identity.login !== 'luoluoluo22') return false;
+  const expires = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  await env.DB.prepare("INSERT INTO agent_auth_cache (token_hash,expires_at) VALUES (?,?) ON CONFLICT(token_hash) DO UPDATE SET expires_at=excluded.expires_at").bind(tokenHash,expires).run();
+  return true;
 };
 const bodyJson = async request => { try { return await request.json(); } catch { return {}; } };
 
