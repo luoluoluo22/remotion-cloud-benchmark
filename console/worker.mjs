@@ -59,24 +59,22 @@ $('loginForm').addEventListener('submit',login);$('logoutBtn').addEventListener(
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), {status, headers: {'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 const now = () => new Date().toISOString();
-const sign = async (value, secret) => {
-  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), {name:'HMAC',hash:'SHA-256'}, false, ['sign']);
-  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(value));
-  return btoa(String.fromCharCode(...new Uint8Array(sig))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-};
-const sessionCookie = async (env) => {
-  const exp = String(Date.now() + 12 * 60 * 60 * 1000);
-  return exp + '.' + await sign(exp, env.SESSION_SECRET);
-};
+const hash = async value => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(value)))), x=>x.toString(16).padStart(2,'0')).join('');
+const randomToken = () => Array.from(crypto.getRandomValues(new Uint8Array(32)), x=>x.toString(16).padStart(2,'0')).join('');
 const validSession = async (request, env) => {
   const raw = (request.headers.get('cookie') || '').split(';').map(x=>x.trim()).find(x=>x.startsWith('render_session='));
   if (!raw) return false;
   const token = raw.slice('render_session='.length);
-  const [exp, sig] = token.split('.');
-  if (!exp || !sig || Number(exp) < Date.now()) return false;
-  return sig === await sign(exp, env.SESSION_SECRET);
+  if (!token) return false;
+  const row = await env.DB.prepare("SELECT token_hash FROM console_sessions WHERE token_hash=? AND expires_at>?").bind(await hash(token), now()).first();
+  return !!row;
 };
-const agentOk = (request, env) => request.headers.get('authorization') === 'Bearer ' + env.AGENT_TOKEN;
+const agentOk = async (request, env) => {
+  const header = request.headers.get('authorization') || '';
+  if (!header.startsWith('Bearer ')) return false;
+  const row = await env.DB.prepare("SELECT value FROM console_secrets WHERE key='agent_token_hash'").first();
+  return !!row && (await hash(header.slice(7))) === row.value;
+};
 const bodyJson = async request => { try { return await request.json(); } catch { return {}; } };
 
 export default {
@@ -88,14 +86,17 @@ export default {
       if (path === '/') return new Response(PAGE, {headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store'}});
       if (path === '/api/login' && request.method === 'POST') {
         const body = await bodyJson(request);
-        if (!env.DASHBOARD_PASSWORD || body.password !== env.DASHBOARD_PASSWORD) return json({error:'密码不正确'},401);
-        const token = await sessionCookie(env);
+        const credential = await env.DB.prepare("SELECT value FROM console_secrets WHERE key='dashboard_password_hash'").first();
+        if (!credential || (await hash(body.password || '')) !== credential.value) return json({error:'密码不正确'},401);
+        const token = randomToken();
+        const expires = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
+        await env.DB.prepare("INSERT INTO console_sessions (token_hash,expires_at) VALUES (?,?)").bind(await hash(token),expires).run();
         return new Response(JSON.stringify({ok:true}), {headers:{'content-type':'application/json','cache-control':'no-store','set-cookie':'render_session='+token+'; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=43200'}});
       }
       if (path === '/api/logout' && request.method === 'POST') return new Response(JSON.stringify({ok:true}), {headers:{'content-type':'application/json','set-cookie':'render_session=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0'}});
       if (path === '/api/me') return json({authenticated:await validSession(request,env)});
       if (path.startsWith('/api/agent/')) {
-        if (!agentOk(request,env)) return json({error:'agent unauthorized'},401);
+        if (!await agentOk(request,env)) return json({error:'agent unauthorized'},401);
         if (path === '/api/agent/heartbeat' && request.method === 'POST') {
           const b = await bodyJson(request);
           await env.DB.prepare("INSERT INTO render_nodes (node_id,label,machine_type,cpu_cores,memory_gb,storage_gb,region,status,last_seen,current_task_id,agent_version) VALUES (?,?,?,?,?,?,?,'online',?,?,?) ON CONFLICT(node_id) DO UPDATE SET label=excluded.label,machine_type=excluded.machine_type,cpu_cores=excluded.cpu_cores,memory_gb=excluded.memory_gb,storage_gb=excluded.storage_gb,region=excluded.region,status='online',last_seen=excluded.last_seen,current_task_id=excluded.current_task_id,agent_version=excluded.agent_version").bind(b.node_id,b.label,b.machine_type,b.cpu_cores,b.memory_gb,b.storage_gb,b.region,now(),b.current_task_id||null,b.agent_version||'1.0').run();
