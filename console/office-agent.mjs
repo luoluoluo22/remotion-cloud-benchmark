@@ -10,6 +10,7 @@ const NODE_ID = 'codespace-4-core';
 const MACHINE = 'standardLinux32gb';
 const REGION = 'Southeast Asia';
 const LOCAL_ROOT = process.env.REMOTION_CONSOLE_REPO || 'D:\\Projects\\remotion-cloud-benchmark';
+const MEDIA_CACHE_DIR = path.join(process.env.LOCALAPPDATA || os.homedir(),'RemotionCloudRender','media-cache');
 const GH_TOKEN = process.env.GH_TOKEN || process.env.GITHUB_TOKEN || execFileSync('gh', ['auth', 'token'], {encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim();
 const TOKEN_PATH = path.join(os.homedir(), '.remotion-cloud-agent-token');
 let AGENT_TOKEN = fs.existsSync(TOKEN_PATH) ? fs.readFileSync(TOKEN_PATH,'utf8').trim() : '';
@@ -82,6 +83,23 @@ function remoteCapture(command) {
     child.once('close', code => code === 0 ? resolve(output.trim()) : reject(new Error('remote command exited with code ' + code)));
   });
 }
+async function copyRemoteOutput(id, relativeOutput) {
+  fs.mkdirSync(MEDIA_CACHE_DIR,{recursive:true});
+  const destination = path.join(MEDIA_CACHE_DIR,id + '.mp4');
+  const source = 'remote:' + REMOTE_ROOT + '/' + relativeOutput;
+  await new Promise((resolve,reject) => {
+    const child = spawn('gh',['codespace','cp','-c',CODESPACE,source,destination],{
+      cwd:LOCAL_ROOT,windowsHide:true,stdio:['ignore','pipe','pipe']
+    });
+    let stderr = '';
+    child.stderr.on('data',chunk=>stderr += chunk.toString());
+    child.once('error',reject);
+    child.once('close',code=>code===0?resolve():reject(new Error('gh codespace cp exited '+code+': '+stderr.slice(-600))));
+  });
+  const localSize = fs.statSync(destination).size;
+  return {path:destination,size:localSize};
+}
+
 let activeTaskId = null;
 let lastState = 'Unknown';
 let lastStateCheckedAt = 0;
@@ -173,14 +191,27 @@ async function renderTask(task) {
     const sizeText = await remoteCapture('cd ' + REMOTE_ROOT + ' && stat -c %s ' + relativeOutput);
     const size = Number(sizeText.split(/\s+/).pop());
     const elapsed = remoteRenderMs ? Math.round(remoteRenderMs / 10) / 100 : Math.round((Date.now()-started)/1000*100)/100;
+    let outputUrl = null;
+    let mediaSyncError = null;
+    try {
+      const copied = await copyRemoteOutput(id,relativeOutput);
+      if (Number.isFinite(size) && copied.size !== size) throw new Error('local copy size mismatch: remote='+size+', local='+copied.size);
+      outputUrl = 'https://render-media.xiangyi.cc.cd/media/' + id + '.mp4';
+      console.log('[office-agent] Media synced to office cache',copied.size+' bytes');
+    } catch (copyError) {
+      mediaSyncError = copyError.message;
+      console.error('[office-agent] Media sync warning:',mediaSyncError);
+    }
     await post('/api/agent/complete',{
       task_id:id,
       output_path:relativeOutput,
+      output_url:outputUrl,
+      media_sync_error:mediaSyncError,
       output_size:Number.isFinite(size)?size:null,
       benchmark_seconds:elapsed,
       benchmark_speed_ratio:task.duration_sec?Math.round(task.duration_sec/elapsed*1000)/1000:null
     });
-    console.log('[office-agent] Completed',id,elapsed+'s',size+' bytes');
+    console.log('[office-agent] Completed',id,elapsed+'s',size+' bytes',outputUrl?'preview ready':'preview pending');
   } catch (error) {
     await post('/api/agent/fail',{task_id:id,error:error.message}).catch(()=>{});
     throw error;
