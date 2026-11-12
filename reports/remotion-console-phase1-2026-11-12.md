@@ -38,3 +38,19 @@ The 144.32-second figure includes SSH startup, repository synchronization, and r
 - Production Remotion templates and product-line selection are not connected yet.
 - R2 is not enabled on the Cloudflare account. MP4 files remain in the private Codespace workspace; the dashboard currently shows the output path and size, but does not yet provide persistent browser playback or downloads.
 - The console remains online if the office PC is off. Queued tasks wait until the office dispatcher is running.
+
+
+## Zero-cost media delivery validation
+
+- R2 was not enabled and no R2 subscription was created.
+- Existing Free-plan zone: `xiangyi.cc.cd`.
+- Existing remote-managed Tunnel: `raccoon-mcp-xiangyi`; its four original host routes were preserved and one additive route was added:
+  - `render-media.xiangyi.cc.cd` → `http://127.0.0.1:8791`
+- DNS CNAME is proxied through the existing Tunnel.
+- Local gateway runs on loopback only and is configured as Windows Scheduled Task `Remotion Cloud Media Gateway`.
+- Gateway health returned HTTP 200 both locally and through the public hostname.
+- Test task `bde06864-0794-4e0c-b70a-12dc57e366b6`: 300/300 frames, MP4 766,071 bytes.
+- Local gateway, public Tunnel, and authenticated Worker media proxy each returned HTTP 206 for `Range: bytes=0-1023`, with the expected `Content-Range: bytes 0-1023/766071`.
+- A temporary dashboard session used for the Worker proxy test was deleted immediately after the test.
+- First automated Codespaces copy attempt exposed a CLI requirement: `gh codespace cp` needs `-e` for the absolute remote path. The dispatcher source now includes `-e`; a manual copy using the corrected command succeeded and the local file size matched 766,071 bytes.
+- Follow-up note: after the dispatcher restart attempt, the D1 node heartbeat changed to offline and the office remote-shell control became unresponsive. The media gateway and public media path had already passed their health and byte-range tests, but automatic post-render copying by the restarted dispatcher still needs one final confirmation once the office dispatcher is online again.
