@@ -23,13 +23,14 @@ Then start the Codespace. The devcontainer starts the agent in the background au
 node console/agent.mjs
 ```
 
-The agent reports heartbeats, claims queued jobs, streams progress/log messages, and records the output file path and render metrics.
+The agent reports heartbeats, claims queued jobs, streams frame-based progress/log messages, and records the output file path, MP4 size, and pure Remotion render duration.
 
 ## Current limitations
 
 - Only `BenchmarkVideo` is enabled for remote task submission in this first phase.
 - R2 is not enabled on the Cloudflare account yet, so completed MP4 files remain in the Codespace workspace and are not yet playable from the console. Enable R2 in the Cloudflare Dashboard to add durable artifact storage and browser playback.
 - The Codespace must be running for its agent to claim queued jobs. The dashboard itself remains online independently.
+- R2 is not enabled on the Cloudflare account yet. Completed MP4s stay in the private Codespace workspace; browser playback and durable downloads will be enabled after R2 is activated.
 - Production Remotion templates and the main video workbench are planned for phase 2.
 
 ## Office dispatcher
