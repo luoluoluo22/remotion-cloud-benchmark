@@ -15,10 +15,9 @@ https://remotion-render-console.remotion-console-7501243.workers.dev
 
 Set these Codespaces user secrets, restricted to this repository:
 
-- `RENDER_AGENT_TOKEN`: the agent token supplied by the console owner.
-- `RENDER_CONSOLE_URL`: `https://remotion-render-console.remotion-console-7501243.workers.dev`
+The agent uses the Codespaces GitHub CLI authentication automatically. No extra agent token needs to be copied into the repository or environment.
 
-Then start the Codespace and run from the repository root:
+Then start the Codespace. The devcontainer starts the agent in the background automatically. To run it manually from the repository root:
 
 ```bash
 node console/agent.mjs
