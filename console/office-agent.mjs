@@ -88,7 +88,7 @@ async function copyRemoteOutput(id, relativeOutput) {
   const destination = path.join(MEDIA_CACHE_DIR,id + '.mp4');
   const source = 'remote:' + REMOTE_ROOT + '/' + relativeOutput;
   await new Promise((resolve,reject) => {
-    const child = spawn('gh',['codespace','cp','-c',CODESPACE,source,destination],{
+    const child = spawn('gh',['codespace','cp','-e','-c',CODESPACE,source,destination],{
       cwd:LOCAL_ROOT,windowsHide:true,stdio:['ignore','pipe','pipe']
     });
     let stderr = '';
