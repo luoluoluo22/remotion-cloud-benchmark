@@ -73,20 +73,8 @@ const validSession = async (request, env) => {
 const agentOk = async (request, env) => {
   const header = request.headers.get('authorization') || '';
   if (!header.startsWith('Bearer ')) return false;
-  const token = header.slice(7);
-  if (token.length < 20) return false;
-  const tokenHash = await hash(token);
-  const cached = await env.DB.prepare("SELECT expires_at FROM agent_auth_cache WHERE token_hash=?").bind(tokenHash).first();
-  if (cached && cached.expires_at > now()) return true;
-  const response = await fetch('https://api.github.com/user', {
-    headers: { authorization: 'Bearer ' + token, accept: 'application/vnd.github+json', 'user-agent': 'remotion-render-console' }
-  });
-  if (!response.ok) return false;
-  const identity = await response.json();
-  if (identity.login !== 'luoluoluo22') return false;
-  const expires = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-  await env.DB.prepare("INSERT INTO agent_auth_cache (token_hash,expires_at) VALUES (?,?) ON CONFLICT(token_hash) DO UPDATE SET expires_at=excluded.expires_at").bind(tokenHash,expires).run();
-  return true;
+  const row = await env.DB.prepare("SELECT value FROM console_secrets WHERE key='agent_token_hash'").first();
+  return !!row && (await hash(header.slice(7))) === row.value;
 };
 const bodyJson = async request => { try { return await request.json(); } catch { return {}; } };
 
@@ -108,6 +96,19 @@ export default {
       }
       if (path === '/api/logout' && request.method === 'POST') return new Response(JSON.stringify({ok:true}), {headers:{'content-type':'application/json','set-cookie':'render_session=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0'}});
       if (path === '/api/me') return json({authenticated:await validSession(request,env)});
+      if (path === '/api/agent/bootstrap' && request.method === 'POST') {
+        const header = request.headers.get('authorization') || '';
+        if (!header.startsWith('Bearer ') || header.length < 28) return json({error:'GitHub CLI authentication required'},401);
+        const response = await fetch('https://api.github.com/user', {
+          headers: { authorization: header, accept: 'application/vnd.github+json', 'user-agent': 'remotion-render-console' }
+        });
+        if (!response.ok) return json({error:'GitHub identity verification failed'},401);
+        const identity = await response.json();
+        if (identity.login !== 'luoluoluo22') return json({error:'GitHub account is not authorized for this renderer'},403);
+        const agentToken = randomToken();
+        await env.DB.prepare("INSERT INTO console_secrets (key,value) VALUES ('agent_token_hash',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(await hash(agentToken)).run();
+        return json({token:agentToken});
+      }
       if (path.startsWith('/api/agent/')) {
         if (!await agentOk(request,env)) return json({error:'agent unauthorized'},401);
         if (path === '/api/agent/heartbeat' && request.method === 'POST') {
