@@ -1,38 +1,43 @@
 # Remotion Cloud Render Console
 
-Public console:
-https://remotion-render-console.remotion-console-7501243.workers.dev
+Public console: https://remotion-render-console.remotion-console-7501243.workers.dev
 
-## Current scope
+## Phase 1 capabilities
 
-- Cloudflare Worker frontend/API with D1 task and node registry.
-- Password login with hashed credential stored in D1; agent token is stored as a hash.
-- Task queue and task logs.
-- Codespace agent polls for queued tasks and runs the verified `BenchmarkVideo` composition.
-- The existing 4-core test result is preloaded into the task history.
+- Cloudflare Worker serves the responsive dashboard and authenticated API.
+- Cloudflare D1 stores task history, render logs, node heartbeats, and hashed dashboard credentials.
+- New benchmark tasks can be queued from the web UI for 10, 30, or 60 seconds.
+- The office dispatcher claims tasks, starts the selected GitHub Codespace through GitHub CLI, pulls the latest code, and runs Remotion.
+- Frame-based progress and render logs are reported back to the dashboard.
+- The dashboard shows completed task metadata, output path, MP4 size, and pure Remotion render time.
 
-## Codespace agent
+## Login
 
-Set these Codespaces user secrets, restricted to this repository:
-
-The agent uses the Codespaces GitHub CLI authentication automatically. No extra agent token needs to be copied into the repository or environment.
-
-Then start the Codespace. The devcontainer starts the agent in the background automatically. To run it manually from the repository root:
-
-```bash
-node console/agent.mjs
-```
-
-The agent reports heartbeats, claims queued jobs, streams frame-based progress/log messages, and records the output file path, MP4 size, and pure Remotion render duration.
-
-## Current limitations
-
-- Only `BenchmarkVideo` is enabled for remote task submission in this first phase.
-- R2 is not enabled on the Cloudflare account yet, so completed MP4 files remain in the Codespace workspace and are not yet playable from the console. Enable R2 in the Cloudflare Dashboard to add durable artifact storage and browser playback.
-- The Codespace must be running for its agent to claim queued jobs. The dashboard itself remains online independently.
-- R2 is not enabled on the Cloudflare account yet. Completed MP4s stay in the private Codespace workspace; browser playback and durable downloads will be enabled after R2 is activated.
-- Production Remotion templates and the main video workbench are planned for phase 2.
+The first-use dashboard password is supplied to the console owner in the ChatGPT conversation. The password itself is not stored in this repository; only its SHA-256 hash is stored in D1.
 
 ## Office dispatcher
 
-Run `node console/office-agent.mjs` on the authenticated office Windows PC. It uses the existing GitHub CLI login on that PC to authenticate with the console, polls the task queue, starts the selected Codespace over `gh codespace ssh`, pulls the latest repository code, and performs the Remotion render remotely. Keep the office PC dispatcher running when you want queued jobs to start automatically.
+Run on the authenticated office Windows PC:
+
+```powershell
+cd D:\Projects\remotion-cloud-benchmark
+node console\office-agent.mjs
+```
+
+The office PC uses its existing GitHub CLI authentication. The Worker validates the GitHub identity against the repository owner and caches only a hash of the short-lived token. No GitHub token is committed to this repository or copied into Codespaces.
+
+On the current office PC, Windows Task Scheduler has a task named `Remotion Cloud Render Agent` configured to start the dispatcher at user logon and restart it after failures. Logs are written to `logs/office-agent.log`.
+
+## Current limitations
+
+- Only `BenchmarkVideo` is enabled for web-submitted jobs. The production Remotion project and product-line templates are phase 2.
+- The 10/30/60-second choices render the corresponding frame range of the 60-second benchmark composition.
+- R2 is not enabled on the Cloudflare account. MP4 files remain in the private Codespace workspace; browser playback and durable downloads are not yet available. Enable R2 in the Cloudflare Dashboard before connecting permanent artifact storage.
+- The dashboard remains online independently, but a queued job starts only while the office dispatcher is running. The Codespace can be stopped between jobs; the dispatcher connects and starts it when a job is claimed.
+- If the office PC is offline, tasks remain queued until the dispatcher returns.
+
+## Cloud resources
+
+- Worker: `remotion-render-console`
+- D1 database: `remotion_render_console` (APAC primary location)
+- Codespace: `4-core-ssh-benchmark-wvgg7x9pr56f9vxw` (`standardLinux32gb`, 4 vCPU, 16 GB RAM, 32 GB storage)
