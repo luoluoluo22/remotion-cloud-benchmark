@@ -142,6 +142,8 @@ export default {
           }
           await env.DB.prepare("UPDATE render_tasks SET status='completed',progress=100,rendered_frames=total_frames,finished_at=?,output_path=?,output_url=?,output_size=?,benchmark_seconds=?,benchmark_speed_ratio=? WHERE id=?").bind(now(),b.output_path||null,safeOutputUrl,b.output_size||null,b.benchmark_seconds||null,b.benchmark_speed_ratio||null,b.task_id).run();
           await env.DB.prepare("INSERT INTO render_logs (task_id,level,message) VALUES (?,'info',?)").bind(b.task_id,'渲染完成；输出文件 '+(b.output_path||'路径未提供')).run();
+          if (b.media_sync_error) await env.DB.prepare("INSERT INTO render_logs (task_id,level,message) VALUES (?,'warning',?)").bind(b.task_id,'本地媒体同步未完成：'+String(b.media_sync_error).slice(0,800)).run();
+          else if (safeOutputUrl) await env.DB.prepare("INSERT INTO render_logs (task_id,level,message) VALUES (?,'info','MP4 已同步到办公室本地缓存，可在线播放和下载')").bind(b.task_id).run();
           return json({ok:true});
         }
         if (path === '/api/agent/fail' && request.method === 'POST') {
