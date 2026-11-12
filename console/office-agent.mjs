@@ -102,18 +102,26 @@ async function renderTask(task) {
     const lines = buffer.split('\n');
     buffer = lines.pop() || '';
     for (const line of lines) {
-      const matches = [...line.matchAll(/(\d+(?:\.\d+)?)%/g)];
-      if (matches.length) {
-        const pct = Math.max(0,Math.min(99.9,Number(matches[matches.length-1][1])));
-        if (pct - lastProgress >= 0.5) {
-          lastProgress = pct;
-          post('/api/agent/progress',{
-            task_id:id,
-            progress:pct,
-            rendered_frames:Math.round((task.total_frames||1800)*pct/100),
-            message:line.trim().slice(0,500)
-          }).catch(error=>console.error('[office-agent] progress:',error.message));
-        }
+      const frameMatch = line.match(/Rendered\\s+(\\d+)\\/(\\d+)/i);
+      const renderPercent = line.match(/Rendering.*?(\\d+(?:\\.\\d+)?)%/i);
+      let pct = null;
+      let frames = null;
+      if (frameMatch) {
+        frames = Number(frameMatch[1]);
+        const total = Number(frameMatch[2]) || Number(task.total_frames) || 1800;
+        pct = Math.max(0,Math.min(99.9,frames / total * 100));
+      } else if (renderPercent) {
+        pct = Math.max(0,Math.min(99.9,Number(renderPercent[1])));
+        frames = Math.round((task.total_frames||1800)*pct/100);
+      }
+      if (pct !== null && pct - lastProgress >= 0.5) {
+        lastProgress = pct;
+        post('/api/agent/progress',{
+          task_id:id,
+          progress:pct,
+          rendered_frames:frames === null ? Math.round((task.total_frames||1800)*pct/100) : frames,
+          message:line.trim().slice(0,500)
+        }).catch(error=>console.error('[office-agent] progress:',error.message));
       } else if (line.trim() && /error|warning|encoding/i.test(line)) {
         post('/api/agent/progress',{task_id:id,progress:Math.max(0,lastProgress),rendered_frames:Math.round((task.total_frames||1800)*Math.max(0,lastProgress)/100),message:line.trim().slice(0,500)}).catch(()=>{});
       }
