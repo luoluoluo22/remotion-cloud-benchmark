@@ -1,4 +1,5 @@
 import { spawn, execFileSync } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
@@ -10,15 +11,36 @@ const MACHINE = 'standardLinux32gb';
 const REGION = 'Southeast Asia';
 const LOCAL_ROOT = process.env.REMOTION_CONSOLE_REPO || 'D:\\Projects\\remotion-cloud-benchmark';
 const GH_TOKEN = process.env.GH_TOKEN || process.env.GITHUB_TOKEN || execFileSync('gh', ['auth', 'token'], {encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim();
+const TOKEN_PATH = path.join(os.homedir(), '.remotion-cloud-agent-token');
+let AGENT_TOKEN = fs.existsSync(TOKEN_PATH) ? fs.readFileSync(TOKEN_PATH,'utf8').trim() : '';
+async function ensureAgentToken(force = false) {
+  if (AGENT_TOKEN && !force) return AGENT_TOKEN;
+  const response = await fetch(API + '/api/agent/bootstrap', {
+    method:'POST',
+    headers:{authorization:'Bearer ' + GH_TOKEN},
+    signal:AbortSignal.timeout(20000)
+  });
+  const body = await response.json().catch(()=>({}));
+  if (!response.ok || !body.token) throw new Error(body.error || 'Render agent bootstrap failed');
+  AGENT_TOKEN = body.token;
+  fs.writeFileSync(TOKEN_PATH,AGENT_TOKEN,{encoding:'utf8',mode:0o600});
+  return AGENT_TOKEN;
+}
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-async function post(endpoint, payload) {
+async function post(endpoint, payload, retried = false) {
+  await ensureAgentToken();
   const response = await fetch(API + endpoint, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: 'Bearer ' + GH_TOKEN },
-    body: JSON.stringify(payload)
+    headers: { 'content-type': 'application/json', authorization: 'Bearer ' + AGENT_TOKEN },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(20000)
   });
   const body = await response.json().catch(() => ({}));
+  if (response.status === 401 && !retried) {
+    await ensureAgentToken(true);
+    return post(endpoint,payload,true);
+  }
   if (!response.ok) throw new Error(body.error || ('HTTP ' + response.status));
   return body;
 }
@@ -163,6 +185,7 @@ async function renderTask(task) {
 }
 
 async function main() {
+  await ensureAgentToken();
   console.log('[office-agent] Started; Codespace:',CODESPACE,'Node:',process.version,'Host:',os.hostname());
   while (true) {
     refreshCodespaceState();
