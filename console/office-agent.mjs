@@ -46,7 +46,7 @@ async function post(endpoint, payload, retried = false) {
 }
 function getCodespaceState() {
   try {
-    const raw = execFileSync('gh', ['codespace','list','--json','name,state'], {encoding:'utf8',stdio:['ignore','pipe','ignore']});
+    const raw = execFileSync('gh', ['codespace','list','--json','name,state'], {encoding:'utf8',stdio:['ignore','pipe','ignore'],timeout:30000});
     const rows = JSON.parse(raw);
     const found = rows.find(row => row.name === CODESPACE);
     return found ? found.state : 'NotFound';
@@ -125,6 +125,7 @@ async function renderTask(task) {
     '; render_exit=$?; set -e; end=$(date +%s%3N); echo __RENDER_ELAPSED_MS=$((end-start)); exit $render_exit';
   const started = Date.now();
   let lastProgress = -1;
+  let lastLoggedProgress = -5;
   let buffer = '';
   let remoteRenderMs = null;
   console.log('[office-agent] Rendering', id, 'on', CODESPACE, 'concurrency', concurrency);
@@ -149,14 +150,18 @@ async function renderTask(task) {
         pct = Math.max(0,Math.min(99.9,Number(renderPercent[1])));
         frames = Math.round((task.total_frames||1800)*pct/100);
       }
-      if (pct !== null && pct - lastProgress >= 0.5) {
+      if (pct !== null && pct - lastProgress >= 1) {
         lastProgress = pct;
-        post('/api/agent/progress',{
+        const payload = {
           task_id:id,
           progress:pct,
-          rendered_frames:frames === null ? Math.round((task.total_frames||1800)*pct/100) : frames,
-          message:line.trim().slice(0,500)
-        }).catch(error=>console.error('[office-agent] progress:',error.message));
+          rendered_frames:frames === null ? Math.round((task.total_frames||1800)*pct/100) : frames
+        };
+        if (pct - lastLoggedProgress >= 5) {
+          payload.message = line.trim().slice(0,500);
+          lastLoggedProgress = pct;
+        }
+        post('/api/agent/progress',payload).catch(error=>console.error('[office-agent] progress:',error.message));
       } else if (line.trim() && /error|warning|encoding/i.test(line)) {
         post('/api/agent/progress',{task_id:id,progress:Math.max(0,lastProgress),rendered_frames:Math.round((task.total_frames||1800)*Math.max(0,lastProgress)/100),message:line.trim().slice(0,500)}).catch(()=>{});
       }
