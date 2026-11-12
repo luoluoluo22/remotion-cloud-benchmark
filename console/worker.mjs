@@ -1,5 +1,5 @@
 
-const PAGE = String.raw\`<!doctype html>
+const PAGE = String.raw`<!doctype html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -51,18 +51,18 @@ async function logout(){await api('/api/logout',{method:'POST'}).catch(()=>{});s
 function renderNode(n){const online=n.status==='online'&&n.last_seen&&Date.now()-Date.parse(n.last_seen)<90000;return '<div class="node"><div class="node-icon">▣</div><div class="node-meta"><div class="node-name">'+esc(n.label)+'</div><div class="muted" style="font-size:11px"><span class="dot '+(online?'online':'')+'"></span>'+(online?'在线':'离线 / 未连接')+' · '+esc(n.region||'区域待确认')+'</div></div><span class="pill">'+esc(n.machine_type||'Codespace')+'</span></div><div class="node-specs"><span class="spec">'+esc(n.cpu_cores||4)+' vCPU</span><span class="spec">'+esc(n.memory_gb||16)+' GB RAM</span><span class="spec">'+esc(n.storage_gb||32)+' GB SSD</span></div><div class="muted" style="font-size:11px;margin-top:10px">最近心跳：'+(n.last_seen?new Date(n.last_seen).toLocaleString():'尚未收到')+'</div>'}
 function renderTask(t){const pct=Math.max(0,Math.min(100,Number(t.progress)||0));const output=t.output_url?'<button data-preview="'+esc(t.id)+'">预览成片</button>':(t.output_path?'<span>输出：'+esc(t.output_path)+'</span>':'<span>尚无输出文件</span>');return '<div class="task"><div class="task-top"><div><div class="task-title">'+esc(t.title)+'</div><div class="task-meta">'+esc(t.composition)+' · '+esc(t.width)+'×'+esc(t.height)+' · '+esc(t.fps)+' FPS · 并发 '+esc(t.concurrency)+'</div></div><span class="status '+esc(t.status)+'">'+esc(statusName(t.status))+'</span></div><div class="progress"><span style="width:'+pct+'%"></span></div><div class="task-bottom"><span>'+pct.toFixed(1)+'% · '+esc(t.rendered_frames||0)+' / '+esc(t.total_frames)+' 帧 · '+(t.created_at?new Date(t.created_at).toLocaleString():'')+'</span><div class="task-actions"><button data-detail="'+esc(t.id)+'">详情 / 日志</button>'+(t.status==='queued'?'<button data-cancel="'+esc(t.id)+'">取消</button>':'')+'</div></div><div class="task-bottom" style="margin-top:8px"><span>'+output+'</span><span>'+(t.benchmark_seconds?t.benchmark_seconds+' 秒':'')+'</span></div></div>'}
 async function load(){try{const j=await api('/api/dashboard');const s=j.stats||{};$('sTotal').textContent=s.total||0;$('sQueued').textContent=s.queued||0;$('sRendering').textContent=s.rendering||0;$('sCompleted').textContent=s.completed||0;const nodes=j.nodes||[];$('nodes').innerHTML=nodes.length?nodes.map(renderNode).join(''):'<div class="empty">尚未登记渲染节点</div>';const online=nodes.some(n=>n.status==='online'&&n.last_seen&&Date.now()-Date.parse(n.last_seen)<90000);$('agentWarning').style.display=online?'none':'block';const tasks=j.tasks||[];$('tasks').innerHTML=tasks.length?tasks.map(renderTask).join(''):'<div class="empty">暂无渲染任务</div>';document.querySelectorAll('[data-detail]').forEach(b=>b.onclick=()=>detail(b.dataset.detail));document.querySelectorAll('[data-cancel]').forEach(b=>b.onclick=()=>cancelTask(b.dataset.cancel));document.querySelectorAll('[data-preview]').forEach(b=>b.onclick=()=>preview(b.dataset.preview))}catch(e){console.error(e)}}
-async function detail(id){try{const j=await api('/api/tasks/'+encodeURIComponent(id));$('detailTitle').textContent=j.task.title;$('detailBody').innerHTML='<div class="node-specs"><span class="spec">'+esc(j.task.status)+'</span><span class="spec">'+esc(j.task.width)+'×'+esc(j.task.height)+'</span><span class="spec">'+esc(j.task.concurrency)+' 并发</span></div><p class="muted" style="font-size:12px">任务 ID：'+esc(j.task.id)+'</p>'+(j.task.error?'<p style="color:var(--red)">'+esc(j.task.error)+'</p>':'')+(j.task.output_url?'<video controls playsinline style="width:100%;border-radius:12px" src="'+esc(j.task.output_url)+'"></video>':(j.task.output_path?'<p class="muted">输出文件位于渲染节点：'+esc(j.task.output_path)+'</p>':''));$('detailLogs').textContent=(j.logs||[]).map(x=>'['+x.at+'] '+x.level.toUpperCase()+' '+x.message).join('\\n')||'暂无日志';$('detailDialog').showModal()}catch(e){alert(e.message)}}
+async function detail(id){try{const j=await api('/api/tasks/'+encodeURIComponent(id));$('detailTitle').textContent=j.task.title;$('detailBody').innerHTML='<div class="node-specs"><span class="spec">'+esc(j.task.status)+'</span><span class="spec">'+esc(j.task.width)+'×'+esc(j.task.height)+'</span><span class="spec">'+esc(j.task.concurrency)+' 并发</span></div><p class="muted" style="font-size:12px">任务 ID：'+esc(j.task.id)+'</p>'+(j.task.error?'<p style="color:var(--red)">'+esc(j.task.error)+'</p>':'')+(j.task.output_url?'<video controls playsinline style="width:100%;border-radius:12px" src="'+esc(j.task.output_url)+'"></video>':(j.task.output_path?'<p class="muted">输出文件位于渲染节点：'+esc(j.task.output_path)+'</p>':''));$('detailLogs').textContent=(j.logs||[]).map(x=>'['+x.at+'] '+x.level.toUpperCase()+' '+x.message).join('\n')||'暂无日志';$('detailDialog').showModal()}catch(e){alert(e.message)}}
 function preview(id){detail(id)}
 async function cancelTask(id){if(!confirm('确定取消这个排队任务？'))return;try{await api('/api/tasks/'+encodeURIComponent(id)+'/cancel',{method:'POST'});await load()}catch(e){alert(e.message)}}
 $('loginForm').addEventListener('submit',login);$('logoutBtn').addEventListener('click',logout);$('newTaskBtn').addEventListener('click',()=>$('createDialog').showModal());$('closeCreate').addEventListener('click',()=>$('createDialog').close());$('closeDetail').addEventListener('click',()=>$('detailDialog').close());$('createForm').addEventListener('submit',async e=>{e.preventDefault();try{await api('/api/tasks',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({composition:$('composition').value,concurrency:Number($('concurrency').value),codec:$('codec').value})});$('createDialog').close();await load()}catch(err){alert(err.message)}});checkLogin();setInterval(()=>{if($('app').style.display==='block')load()},5000);
-</script></body></html>\`;
+</script></body></html>`;
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), {status, headers: {'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 const now = () => new Date().toISOString();
 const sign = async (value, secret) => {
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), {name:'HMAC',hash:'SHA-256'}, false, ['sign']);
   const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(value));
-  return btoa(String.fromCharCode(...new Uint8Array(sig))).replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/,'');
+  return btoa(String.fromCharCode(...new Uint8Array(sig))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 };
 const sessionCookie = async (env) => {
   const exp = String(Date.now() + 12 * 60 * 60 * 1000);
@@ -145,7 +145,7 @@ export default {
         await env.DB.prepare("INSERT INTO render_logs (task_id,level,message) VALUES (?,'info','网页已创建渲染任务，等待节点领取')").bind(id).run();
         return json({ok:true,id});
       }
-      const taskMatch = path.match(/^\\/api\\/tasks\\/([a-f0-9-]+)(?:\\/(cancel))?$/i);
+      const taskMatch = path.match(/^\/api\/tasks\/([a-f0-9-]+)(?:\/(cancel))?$/i);
       if (taskMatch && request.method === 'POST' && taskMatch[2] === 'cancel') {
         const result = await env.DB.prepare("UPDATE render_tasks SET status='cancelled',finished_at=? WHERE id=? AND status='queued'").bind(now(),taskMatch[1]).run();
         return json({ok:true,changes:result.meta?.changes||0});
