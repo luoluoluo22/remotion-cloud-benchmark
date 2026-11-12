@@ -86,14 +86,16 @@ async function renderTask(task) {
   const id = String(task.id).replace(/[^a-f0-9-]/gi, '');
   const concurrency = [1,2,4].includes(Number(task.concurrency)) ? Number(task.concurrency) : 4;
   const relativeOutput = 'out/console/' + id + '.mp4';
-  const remoteCommand = 'cd ' + REMOTE_ROOT +
-    ' && git pull --ff-only origin main' +
-    ' && mkdir -p out/console' +
-    ' && npx remotion render src/index.ts BenchmarkVideo ' + relativeOutput +
-    ' --codec=h264 --concurrency=' + concurrency;
+  const remoteCommand = 'set -e; cd ' + REMOTE_ROOT +
+    '; git pull --ff-only origin main' +
+    '; mkdir -p out/console' +
+    '; start=$(date +%s%3N); set +e; npx remotion render src/index.ts BenchmarkVideo ' + relativeOutput +
+    ' --codec=h264 --concurrency=' + concurrency +
+    '; render_exit=$?; set -e; end=$(date +%s%3N); echo __RENDER_ELAPSED_MS=$((end-start)); exit $render_exit';
   const started = Date.now();
   let lastProgress = -1;
   let buffer = '';
+  let remoteRenderMs = null;
   console.log('[office-agent] Rendering', id, 'on', CODESPACE, 'concurrency', concurrency);
   const progressHandler = chunk => {
     const text = chunk.toString();
@@ -102,6 +104,8 @@ async function renderTask(task) {
     const lines = buffer.split('\n');
     buffer = lines.pop() || '';
     for (const line of lines) {
+      const elapsedMatch = line.match(/__RENDER_ELAPSED_MS=(\\d+)/);
+      if (elapsedMatch) remoteRenderMs = Number(elapsedMatch[1]);
       const frameMatch = line.match(/Rendered\s+(\d+)\/(\d+)/i);
       const renderPercent = line.match(/Rendering.*?(\d+(?:\.\d+)?)%/i);
       let pct = null;
@@ -132,21 +136,10 @@ async function renderTask(task) {
     await runRemote(remoteCommand, progressHandler);
     const sizeText = await remoteCapture('cd ' + REMOTE_ROOT + ' && stat -c %s ' + relativeOutput);
     const size = Number(sizeText.split(/\s+/).pop());
-    const elapsed = Math.round((Date.now()-started)/1000*100)/100;
-    let outputUrl = null;
-    try {
-      await remoteCapture("cd " + REMOTE_ROOT + " && (pgrep -f 'node console/artifact-server.mjs' >/dev/null || (nohup node console/artifact-server.mjs >/tmp/remotion-artifacts.log 2>&1 &)) && sleep 1");
-      execFileSync('gh',['codespace','ports','visibility','4174:public','-c',CODESPACE],{encoding:'utf8',stdio:['ignore','pipe','ignore']});
-      const portsRaw = execFileSync('gh',['codespace','ports','-c',CODESPACE,'--json','sourcePort,browseUrl,visibility'],{encoding:'utf8',stdio:['ignore','pipe','ignore']});
-      const artifactPort = JSON.parse(portsRaw).find(port => Number(port.sourcePort) === 4174);
-      if (artifactPort && artifactPort.browseUrl) outputUrl = artifactPort.browseUrl.replace(/\/$/,'') + '/artifacts/' + id + '.mp4';
-    } catch (error) {
-      console.error('[office-agent] artifact preview setup skipped:',error.message);
-    }
+    const elapsed = remoteRenderMs ? Math.round(remoteRenderMs / 10) / 100 : Math.round((Date.now()-started)/1000*100)/100;
     await post('/api/agent/complete',{
       task_id:id,
       output_path:relativeOutput,
-      output_url:outputUrl,
       output_size:Number.isFinite(size)?size:null,
       benchmark_seconds:elapsed,
       benchmark_speed_ratio:task.duration_sec?Math.round(task.duration_sec/elapsed*1000)/1000:null
