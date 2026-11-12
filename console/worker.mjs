@@ -129,7 +129,14 @@ export default {
         }
         if (path === '/api/agent/complete' && request.method === 'POST') {
           const b = await bodyJson(request);
-          await env.DB.prepare("UPDATE render_tasks SET status='completed',progress=100,rendered_frames=total_frames,finished_at=?,output_path=?,output_url=?,output_size=?,benchmark_seconds=?,benchmark_speed_ratio=? WHERE id=?").bind(now(),b.output_path||null,b.output_url||null,b.output_size||null,b.benchmark_seconds||null,b.benchmark_speed_ratio||null,b.task_id).run();
+          let safeOutputUrl = null;
+          if (b.output_url) {
+            try {
+              const candidate = new URL(b.output_url);
+              if (candidate.protocol === 'https:' && candidate.hostname.endsWith('.app.github.dev')) safeOutputUrl = candidate.toString();
+            } catch {}
+          }
+          await env.DB.prepare("UPDATE render_tasks SET status='completed',progress=100,rendered_frames=total_frames,finished_at=?,output_path=?,output_url=?,output_size=?,benchmark_seconds=?,benchmark_speed_ratio=? WHERE id=?").bind(now(),b.output_path||null,safeOutputUrl,b.output_size||null,b.benchmark_seconds||null,b.benchmark_speed_ratio||null,b.task_id).run();
           await env.DB.prepare("INSERT INTO render_logs (task_id,level,message) VALUES (?,'info',?)").bind(b.task_id,'渲染完成；输出文件 '+(b.output_path||'路径未提供')).run();
           return json({ok:true});
         }
@@ -149,7 +156,9 @@ export default {
         const upstreamHeaders = new Headers();
         const range = request.headers.get('range');
         if (range) upstreamHeaders.set('range',range);
-        const upstream = await fetch(task.output_url,{headers:upstreamHeaders});
+        const mediaUrl = new URL(task.output_url);
+        if (mediaUrl.protocol !== 'https:' || !mediaUrl.hostname.endsWith('.app.github.dev')) return json({error:'视频地址不在允许的 Codespaces 域名内'},502);
+        const upstream = await fetch(mediaUrl.toString(),{headers:upstreamHeaders});
         if (!upstream.ok && upstream.status !== 206) return json({error:'渲染节点暂时无法提供视频'},502);
         const headers = new Headers({'content-type':'video/mp4','accept-ranges':'bytes','cache-control':'private, no-store'});
         for (const key of ['content-length','content-range','last-modified','etag']) {
