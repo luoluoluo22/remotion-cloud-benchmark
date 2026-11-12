@@ -27,9 +27,10 @@ Date: 2026-11-12
 | Job | Frames | Duration | Render time | Output |
 |---|---:|---:|---:|---:|
 | 60-second end-to-end test | 1,800 | 60s | 144.32s total orchestration time | 3,718,356 bytes |
-| 10-second short test | 300 | 10s | 19.16s pure Remotion render time | 766,071 bytes |
+| 10-second short test | 300 | 10s | 19.21s Remotion command time | 766,071 bytes |
+| 60-second full benchmark | 1,800 | 60s | 80.86s Remotion command time | 3,718,356 bytes |
 
-The 60-second figure includes SSH startup, repository synchronization, and render setup. The office dispatcher now measures the actual Remotion command interval separately. The 10-second test verified frame-based progress from 0/300 through 300/300 and completed successfully.
+The 144.32-second figure includes SSH startup, repository synchronization, and render setup. The new dispatcher measures the `npx remotion render` command interval separately; that interval includes Remotion bundling and H.264 encoding but excludes SSH startup and `git pull`. The verified 60-second command-time ratio is 0.742× real time. The short test verified frame-based progress from 0/300 through 300/300; the full test completed 1,800/1,800 frames successfully.
 
 ## Current product limits
 
