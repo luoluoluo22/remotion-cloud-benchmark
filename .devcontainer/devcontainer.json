@@ -6,9 +6,16 @@
       "version": "latest"
     }
   },
-  "forwardPorts": [3000],
+  "forwardPorts": [
+    3000
+  ],
   "postCreateCommand": "sudo apt-get update && sudo apt-get install -y libnspr4 libnss3 && npm install",
   "customizations": {
-    "vscode": { "extensions": ["dbaeumer.vscode-eslint"] }
-  }
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint"
+      ]
+    }
+  },
+  "postStartCommand": "bash -lc 'if [ -n \"$RENDER_AGENT_TOKEN\" ]; then nohup node console/agent.mjs >/tmp/remotion-agent.log 2>&1 & fi'"
 }
