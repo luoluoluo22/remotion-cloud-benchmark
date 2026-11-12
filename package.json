@@ -1,0 +1,24 @@
+{
+  "name": "remotion-cloud-benchmark",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A reproducible 60-second Remotion render benchmark for GitHub Codespaces",
+  "scripts": {
+    "dev": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts BenchmarkVideo out/benchmark-60s.mp4 --codec=h264 --concurrency=4",
+    "render:timed": "bash scripts/render-timed.sh",
+    "benchmark": "remotion benchmark src/index.ts BenchmarkVideo --codec=h264 --runs=3 --concurrencies=1,2,4",
+    "benchmark:machine": "node scripts/machine-report.mjs"
+  },
+  "dependencies": {
+    "@remotion/cli": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "remotion": "latest"
+  },
+  "devDependencies": {
+    "@types/react": "latest",
+    "@types/node": "latest",
+    "typescript": "latest"
+  }
+}
