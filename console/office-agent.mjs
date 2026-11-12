@@ -102,8 +102,8 @@ async function renderTask(task) {
     const lines = buffer.split('\n');
     buffer = lines.pop() || '';
     for (const line of lines) {
-      const frameMatch = line.match(/Rendered\\s+(\\d+)\\/(\\d+)/i);
-      const renderPercent = line.match(/Rendering.*?(\\d+(?:\\.\\d+)?)%/i);
+      const frameMatch = line.match(/Rendered\s+(\d+)\/(\d+)/i);
+      const renderPercent = line.match(/Rendering.*?(\d+(?:\.\d+)?)%/i);
       let pct = null;
       let frames = null;
       if (frameMatch) {
@@ -133,9 +133,20 @@ async function renderTask(task) {
     const sizeText = await remoteCapture('cd ' + REMOTE_ROOT + ' && stat -c %s ' + relativeOutput);
     const size = Number(sizeText.split(/\s+/).pop());
     const elapsed = Math.round((Date.now()-started)/1000*100)/100;
+    let outputUrl = null;
+    try {
+      await remoteCapture("cd " + REMOTE_ROOT + " && (pgrep -f 'node console/artifact-server.mjs' >/dev/null || (nohup node console/artifact-server.mjs >/tmp/remotion-artifacts.log 2>&1 &)) && sleep 1");
+      execFileSync('gh',['codespace','ports','visibility','4174:public','-c',CODESPACE],{encoding:'utf8',stdio:['ignore','pipe','ignore']});
+      const portsRaw = execFileSync('gh',['codespace','ports','-c',CODESPACE,'--json','sourcePort,browseUrl,visibility'],{encoding:'utf8',stdio:['ignore','pipe','ignore']});
+      const artifactPort = JSON.parse(portsRaw).find(port => Number(port.sourcePort) === 4174);
+      if (artifactPort && artifactPort.browseUrl) outputUrl = artifactPort.browseUrl.replace(/\/$/,'') + '/artifacts/' + id + '.mp4';
+    } catch (error) {
+      console.error('[office-agent] artifact preview setup skipped:',error.message);
+    }
     await post('/api/agent/complete',{
       task_id:id,
       output_path:relativeOutput,
+      output_url:outputUrl,
       output_size:Number.isFinite(size)?size:null,
       benchmark_seconds:elapsed,
       benchmark_speed_ratio:task.duration_sec?Math.round(task.duration_sec/elapsed*1000)/1000:null
