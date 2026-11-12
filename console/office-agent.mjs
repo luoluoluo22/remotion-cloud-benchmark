@@ -104,7 +104,7 @@ async function renderTask(task) {
     const lines = buffer.split('\n');
     buffer = lines.pop() || '';
     for (const line of lines) {
-      const elapsedMatch = line.match(/__RENDER_ELAPSED_MS=(\\d+)/);
+      const elapsedMatch = line.match(/__RENDER_ELAPSED_MS=(\d+)/);
       if (elapsedMatch) remoteRenderMs = Number(elapsedMatch[1]);
       const frameMatch = line.match(/Rendered\s+(\d+)\/(\d+)/i);
       const renderPercent = line.match(/Rendering.*?(\d+(?:\.\d+)?)%/i);
