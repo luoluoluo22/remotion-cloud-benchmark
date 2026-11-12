@@ -24,7 +24,7 @@ cd D:\Projects\remotion-cloud-benchmark
 node console\office-agent.mjs
 ```
 
-The office PC uses its existing GitHub CLI authentication. The Worker validates the GitHub identity against the repository owner and caches only a hash of the short-lived token. No GitHub token is committed to this repository or copied into Codespaces.
+The office PC uses its existing GitHub CLI authentication once to bootstrap a dedicated render-agent token. The Worker verifies the GitHub account, stores only the token hash in D1, and the dispatcher stores the raw token in the current Windows user profile outside the repository. The GitHub CLI token is never committed or copied into Codespaces.
 
 On the current office PC, Windows Task Scheduler has a task named `Remotion Cloud Render Agent` configured to start the dispatcher at user logon and restart it after failures. Logs are written to `logs/office-agent.log`.
 
