@@ -17,5 +17,5 @@
       ]
     }
   },
-  "postStartCommand": "bash -lc 'if [ -n \"$RENDER_AGENT_TOKEN\" ]; then nohup node console/agent.mjs >/tmp/remotion-agent.log 2>&1 & fi'"
+  "postStartCommand": "bash -lc 'if command -v gh >/dev/null 2>&1 && gh auth token >/dev/null 2>&1; then nohup node console/agent.mjs >/tmp/remotion-agent.log 2>&1 & fi'"
 }
