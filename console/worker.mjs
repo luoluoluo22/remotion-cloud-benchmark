@@ -111,7 +111,8 @@ export default {
         if (!await agentOk(request,env)) return json({error:'agent unauthorized'},401);
         if (path === '/api/agent/heartbeat' && request.method === 'POST') {
           const b = await bodyJson(request);
-          await env.DB.prepare("INSERT INTO render_nodes (node_id,label,machine_type,cpu_cores,memory_gb,storage_gb,region,status,last_seen,current_task_id,agent_version) VALUES (?,?,?,?,?,?,?,'online',?,?,?) ON CONFLICT(node_id) DO UPDATE SET label=excluded.label,machine_type=excluded.machine_type,cpu_cores=excluded.cpu_cores,memory_gb=excluded.memory_gb,storage_gb=excluded.storage_gb,region=excluded.region,status='online',last_seen=excluded.last_seen,current_task_id=excluded.current_task_id,agent_version=excluded.agent_version").bind(b.node_id,b.label,b.machine_type,b.cpu_cores,b.memory_gb,b.storage_gb,b.region,now(),b.current_task_id||null,b.agent_version||'1.0').run();
+          const nodeStatus = b.status === 'offline' ? 'offline' : 'online';
+          await env.DB.prepare("INSERT INTO render_nodes (node_id,label,machine_type,cpu_cores,memory_gb,storage_gb,region,status,last_seen,current_task_id,agent_version) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(node_id) DO UPDATE SET label=excluded.label,machine_type=excluded.machine_type,cpu_cores=excluded.cpu_cores,memory_gb=excluded.memory_gb,storage_gb=excluded.storage_gb,region=excluded.region,status=excluded.status,last_seen=excluded.last_seen,current_task_id=excluded.current_task_id,agent_version=excluded.agent_version").bind(b.node_id,b.label,b.machine_type,b.cpu_cores,b.memory_gb,b.storage_gb,b.region,nodeStatus,now(),b.current_task_id||null,b.agent_version||'1.0').run();
           return json({ok:true});
         }
         if (path === '/api/agent/claim' && request.method === 'POST') {
